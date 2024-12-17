@@ -1,6 +1,6 @@
 # Reach00 (PS-EM-LLM): Human-like Pattern Separation Enhanced Episodic Memory for Infinite Context LLMs
 
-This repository contains an enhanced version of EM-LLM ([original paper](https://arxiv.org/abs/2407.09450)) that incorporates hippocampal pattern separation mechanisms to improve event distinctiveness.
+This repository contains an enhanced version of EM-LLM ([original paper](https://arxiv.org/abs/2407.09450)) that incorporates hippocampal pattern separation mechanisms to improve episode distinctiveness.
 
 ### EM-LLM Architecture
 <div align="center">
@@ -25,7 +25,10 @@ If you use this pattern separation enhanced version, please cite both the origin
       primaryClass={cs.AI},
       url={https://arxiv.org/abs/2407.09450}, 
 }
-@misc{yourname2024patternseparation,
+```
+
+```
+@misc{stothart2024patternseparation,
       title={Human-like Pattern Separation Enhanced Episodic Memory for Infinite Context LLMs}, 
       author={Arron Stothart},
       year={2024},
