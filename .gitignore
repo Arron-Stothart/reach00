@@ -6,3 +6,4 @@ em_llm.egg-info
 *result.json
 *.log
 offload_data
+.DS_Store
