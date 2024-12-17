@@ -1,8 +1,0 @@
-defaults:
-  - default
-
-on_episode_end_flow:
-  _target_: agent.commands.SequentialFlow
-  sequence:
-    - _target_: agent.commands.SaveEpisodeTrajectory
-    - _target_: agent.commands.SendTrajectory

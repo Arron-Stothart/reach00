@@ -1,5 +1,0 @@
-defaults:
-  - openai
-
-model_id: gpt-4
-context_length: 8192
