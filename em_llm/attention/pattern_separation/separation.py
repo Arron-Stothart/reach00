@@ -2,7 +2,11 @@ from typing import List, Dict
 import torch
 
 class PatternSeparator:
-    """Basic pattern separation mechanism"""
+    """Basic pattern separation mechanism
+    
+    The CA3 region of the hippocampus helps determine if an input pattern is similar enough to trigger completion 
+    (treating events as the same) or different enough to trigger separation (treating them as distinct).
+    """
     
     def __init__(self, 
                  distinctiveness_threshold: float = 0.5,
@@ -12,7 +16,7 @@ class PatternSeparator:
             distinctiveness_threshold: Minimum difference required between episodes
             feature_weights: Weights for different features (entities, actions, locations)
         """
-        self.distinctiveness_threshold = distinctiveness_threshold
+        self.distinctiveness_threshold = distinctiveness_threshold # TODO: Dynamic threshold
         self.feature_weights = feature_weights or {
             'entities': 1.0,
             'actions': 0.8,
@@ -25,6 +29,12 @@ class PatternSeparator:
         """
         Calculate distinctiveness score between two episodes
         Higher score = more distinct
+        
+        Memory for LLMs is text-only, we can use:
+        - Semantic similarity of core elements (actors, actions, etc.)
+        - Semantic similarity of contextual elements / circumstantial details (location, time, etc.)
+        - Abstract relationships
+        - Temporal context (when events occurred in the episode sequence)
         """
         # Basic cosine similarity
         similarity = torch.nn.functional.cosine_similarity(
