@@ -5,11 +5,11 @@ This repository contains an enhanced version of EM-LLM ([original paper](https:/
 ### EM-LLM Architecture
 <div align="center">
 
-  <img src="./images/architecture.png" alt="architecture" width="80%"/>
+  <img src="./images/ps_architecture.png" alt="architecture" width="80%"/>
 
 </div>
 
-**Figure 1:**  Architecture of memory formation and retrieval in each LLM layer. *Formation:* Input sequence is initially segmented via surprise (purple dashed lines in ①), then segmentation is refined based on group theoretic metrics (green dashed lines in ②). Initial tokens and local context are preserved. *Retrieval:* via both k-NN search ③ and selecting contiguous events from episodic memory ④.
+**Figure 1:** Architecture of memory formation and retrieval in each LLM layer. *Formation:* Input sequence is initially segmented via surprise (purple dashed lines in ①), then segmentation is refined based on group theoretic metrics (green dashed lines in ②). Pattern separation enhances episode distinctiveness through both separation of similar patterns and completion of partial patterns (distinct/similar coloring in ③). *Retrieval:* via both k-NN search ④ and selecting contiguous events from episodic memory ⑤.
 
 ## Citation
 
