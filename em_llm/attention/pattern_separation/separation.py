@@ -1,103 +1,91 @@
-from typing import List, Dict
 import torch
+from typing import List, Dict
+from .separation import PatternSeparator
 
-class PatternSeparator:
-    """Basic pattern separation mechanism
+class EnhancedPatternSeparator(PatternSeparator):
+    """
+    Pattern separation for transformer memory blocks
     
     The CA3 region of the hippocampus helps determine if an input pattern is similar enough to trigger completion 
     (treating events as the same) or different enough to trigger separation (treating them as distinct).
-    """
     
-    def __init__(self, 
-                 distinctiveness_threshold: float = 0.5,
-                 feature_weights: Dict[str, float] = None):
-        """
-        Args:
-            distinctiveness_threshold: Minimum difference required between episodes
-            feature_weights: Weights for different features (entities, actions, locations)
-        """
-        self.distinctiveness_threshold = distinctiveness_threshold # TODO: Dynamic threshold
-        self.feature_weights = feature_weights or {
-            'entities': 1.0,
-            'actions': 0.8,
-            'locations': 0.6
-        }
-    
-    def calculate_distinctiveness(self, 
-                                episode1: torch.Tensor, 
-                                episode2: torch.Tensor) -> float:
-        """
-        Calculate distinctiveness score between two episodes
-        Higher score = more distinct
-        
-        Memory for LLMs is text-only, we can use:
+    TODO: Use more sophisticated similarity metrics
         - Semantic similarity of core elements (actors, actions, etc.)
         - Semantic similarity of contextual elements / circumstantial details (location, time, etc.)
         - Abstract relationships
         - Temporal context (when events occurred in the episode sequence)
-        """
-        # Basic cosine similarity
-        similarity = torch.nn.functional.cosine_similarity(
-            episode1.unsqueeze(0), 
-            episode2.unsqueeze(0)
-        )
-        return 1.0 - similarity.item()
+    """
     
-    def enhance_separation(self, 
-                          episodes: List[torch.Tensor]) -> List[torch.Tensor]:
-        """
-        Enhance separation between similar episodes by amplifying differences
-        """
-        enhanced_episodes = []
+    def __init__(self,
+                 distinctiveness_threshold: float = 0.5,
+                 enhancement_factor: float = 1.2,
+                 retrieval_threshold: float = 0.7,
+                 max_retrievals: int = 20,
+                 feature_weights: Dict[str, float] = None):
+        super().__init__(distinctiveness_threshold, feature_weights)
+        self.enhancement_factor = enhancement_factor
+        self.retrieval_threshold = retrieval_threshold
+        self.max_retrievals = max_retrievals
+
+    def enhance_separation(self, current: torch.Tensor, block_repr_k: List[torch.Tensor]) -> torch.Tensor:
+        """Enhanced pattern separation with memory retrieval"""
+        # 1. Retrieve similar memories using block_repr_k
+        similarities = []
+        for block in block_repr_k:
+            sim = self.calculate_distinctiveness(current, block)
+            similarities.append(sim)
         
-        for i, current_episode in enumerate(episodes):
-            # Compare with previous episodes
-            needs_separation = False
+        # 2. Limit number of retrievals
+        similar_indices = [i for i, sim in enumerate(similarities) 
+                         if sim > self.retrieval_threshold]
+        
+        if len(similar_indices) > self.max_retrievals:
+            similar_indices = sorted(similar_indices, 
+                                  key=lambda i: similarities[i],
+                                  reverse=True)[:self.max_retrievals]
+        if not similar_indices:
+            return current
+
+        # 3. Calculate mean representation of similar blocks
+        similar_blocks = [block_repr_k[i] for i in similar_indices]
+        similar_mean = torch.stack(similar_blocks).mean(dim=0)
+        
+        # 4. If similar to mean representation of similar blocks, enhance separation
+        # TODO: Case for when blocks come from same episode
+        if self.calculate_distinctiveness(current, similar_mean) < self.distinctiveness_threshold:
+            diff = current - similar_mean
+            enhanced = current + (diff * (self.enhancement_factor - 1.0))
+            enhanced = enhanced * (torch.norm(current) / torch.norm(enhanced)) # Normalize
             
-            for prev_episode in enhanced_episodes:
-                distinctiveness = self.calculate_distinctiveness(
-                    current_episode, prev_episode
-                )
-                
-                if distinctiveness < self.distinctiveness_threshold:
-                    needs_separation = True
-                    break
+            return enhanced
             
-            if needs_separation:
-                # Enhance distinctive features
-                enhanced_episode = self._amplify_differences(
-                    current_episode, 
-                    enhanced_episodes
-                )
-            else:
-                enhanced_episode = current_episode
-                
-            enhanced_episodes.append(enhanced_episode)
-            
-        return enhanced_episodes
-    
+        return current
+
     def _amplify_differences(self, 
                            episode: torch.Tensor,
-                           other_episodes: List[torch.Tensor]) -> torch.Tensor:
+                           similar_episodes: List[torch.Tensor],
+                           similarities: List[float]) -> torch.Tensor:
         """
-        Amplify features that make this episode distinct from others
+        Amplify differences weighted by similarity
+        Finds dimensions with largest differences and amplifies them
         """
-        # Start with a copy of the episode
+        if not similar_episodes:
+            return episode
+            
+        weights = torch.softmax(torch.tensor(similarities), dim=0)
+        weighted_episodes = torch.stack([ep * w for ep, w in zip(similar_episodes, weights)])
+        weighted_mean = weighted_episodes.mean(dim=0)
+        
+        diff_vector = episode - weighted_mean
+        diff_magnitude = torch.abs(diff_vector)
+        
+        k = int(0.2 * diff_vector.shape[-1])
+        top_diffs, indices = torch.topk(diff_magnitude, k)
+        
         enhanced = episode.clone()
         
-        # Calculate average of other episodes
-        if other_episodes:
-            others_mean = torch.stack(other_episodes).mean(dim=0)
-            
-            # Find most distinctive dimensions
-            differences = torch.abs(episode - others_mean)
-            
-            # Amplify top distinctive features
-            top_k = int(0.2 * differences.shape[0])  # Amplify top 20% most distinctive features
-            _, indices = torch.topk(differences, top_k)
-            
-            # Increase the difference in these dimensions
-            enhancement_factor = 1.2  # Increase distinctiveness by 20%
-            enhanced[indices] += (episode[indices] - others_mean[indices]) * (enhancement_factor - 1.0)
-            
+        enhanced[indices] += diff_vector[indices] * (self.enhancement_factor - 1.0)
+        
+        enhanced = enhanced * (torch.norm(episode) / torch.norm(enhanced)) # Normalize
+        
         return enhanced

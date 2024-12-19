@@ -3,8 +3,9 @@ from typing import Optional, Tuple
 from .dot_product_attention import TorchMultiStageDotProductAttention
 import functools
 import random
-import os, psutil
-
+import os
+import psutil
+from .pattern_separation.separation import EnhancedPatternSeparator
 class CudaCache:
     def __init__(self, num_units, unit_size, max_block_size, dtype, device='cuda'):
         self.num_units = num_units
@@ -286,6 +287,8 @@ class ContextManager:
                  disk_offload_dir: str = "./offload_data",
                  allow_disk_offload: bool = False,
                  vector_offload: bool = False,
+                 enable_pattern_separation: bool = False,
+                 pattern_separation_threshold: float = 0.5,
                  **kwargs
     ):
         
@@ -332,6 +335,13 @@ class ContextManager:
 
         self.max_total_retrieved_tokens = self.global_context_cap - exc_block_size - n_init
         assert self.max_total_retrieved_tokens <= max_cached_block*min_block_size, f"Not enough cached blocks to fit {self.max_total_retrieved_tokens} tokens."
+
+        self.enable_pattern_separation = enable_pattern_separation
+        self.pattern_separation_threshold = pattern_separation_threshold
+        if enable_pattern_separation:
+            self.pattern_separator = EnhancedPatternSeparator(
+                distinctiveness_threshold=pattern_separation_threshold
+            )
 
     def _init(
         self, 
@@ -747,22 +757,38 @@ class ContextManager:
         return torch.gather(k, -2, score_topk[:, :, None].expand(self.num_heads, repr_topk, self.dim_head)), repr_topk
         
     def _add_block(self, u, remainder_st, remainder_ed, load_to_disk=False):
-
-        kv = (
-            self.global_remainder[0][u, :, remainder_st: remainder_ed, :],
-            self.global_remainder[1][u, :, remainder_st: remainder_ed, :]
+        block_content = (
+            self.global_remainder[0][u, :, remainder_st:remainder_ed, :],
+            self.global_remainder[1][u, :, remainder_st:remainder_ed, :]
         )
 
-        self.global_blocks[u].append((
+        if self.enable_pattern_separation:
+            # Retrieve similar blocks and enhance separation if any
+            block_repr = block_content[0].mean(dim=(0,2))
+            block_reprs = [block.get()[0].mean(dim=(0,2)) 
+                          for block in self.global_blocks[u]]
+            if block_reprs:
+                enhanced_repr = self.pattern_separator.enhance_separation(
+                    block_repr, block_reprs
+                )
+                
+                enhancement = enhanced_repr - block_repr
+                block_content = (
+                    block_content[0] + enhancement.view(1, 1, 1, -1),
+                    block_content[1] + enhancement.view(1, 1, 1, -1)
+                )
+
+        self.global_blocks[u].append(
             self.create_memory_block(
-                kv=kv,
+                kv=block_content,
                 cache=self.cuda_cache,
                 load_to_cache=False,
                 allow_disk_offload=self.allow_disk_offload,
                 load_to_disk=load_to_disk,
                 cpu_cache=self.cpu_cache
             )
-        ))
+        )
+
         if self.allow_disk_offload is not False:
             bidx = len(self.global_blocks[u]) - 1
             self.block_usage[u][bidx] = 0

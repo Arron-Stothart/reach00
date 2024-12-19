@@ -1,5 +1,5 @@
 import torch
-from torch.nn import CrossEntropyLoss, MSELoss
+from torch.nn import CrossEntropyLoss
 
 from typing import List, Optional, Tuple, Union
 from .context_manager import ContextManager
@@ -28,6 +28,8 @@ def em_llm_attn_forward(
     random_topk_blocks=False,
     infini_attention=False,
     uniform_blocks=False,
+    enable_pattern_separation: bool = False,
+    pattern_separation_threshold: float = 0.5,
     *args, **kwargs
 ):
 
@@ -89,6 +91,8 @@ def em_llm_attn_forward(
                 infini_attention=infini_attention,
                 **similarity_refinement_kwargs,
                 **contiguity_buffer_kwargs,
+                enable_pattern_separation=enable_pattern_separation,
+                pattern_separation_threshold=pattern_separation_threshold,
                 **kwargs
             )
 
