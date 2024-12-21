@@ -11,6 +11,11 @@ This repository contains an enhanced version of EM-LLM ([original paper](https:/
 
 **Figure 1:** Architecture of memory formation and retrieval in each LLM layer. *Formation:* Input sequence is initially segmented via surprise (purple dashed lines in ①), then segmentation is refined based on group theoretic metrics (green dashed lines in ②). Pattern separation enhances episode distinctiveness through both separation of similar patterns and completion of partial patterns (distinct/similar coloring in ③). *Retrieval:* via both k-NN search ④ and selecting contiguous events from episodic memory ⑤.
 
+## Great Resources
+- [Pattern separation in the hippocampus](https://youtu.be/P_G7HCNG-bI)  - Cognitive Neuroscience Compendium
+- [Equipping LLMs with Human-Like Memory (EM-LLM Researcher Talk)](https://youtu.be/gWoh_5fsZpA) - Huawei's Noahs Ark Lab & UCL
+
+
 ## Citation
 
 If you use this pattern separation enhanced version, please cite both the original EM-LLM paper and this work:
