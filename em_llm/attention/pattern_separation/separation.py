@@ -1,8 +1,7 @@
 import torch
-from typing import List, Dict
-from .separation import PatternSeparator
+from typing import List
 
-class EnhancedPatternSeparator(PatternSeparator):
+class EnhancedPatternSeparator():
     """
     Pattern separation for transformer memory blocks
     
@@ -14,18 +13,22 @@ class EnhancedPatternSeparator(PatternSeparator):
         - Semantic similarity of contextual elements / circumstantial details (location, time, etc.)
         - Abstract relationships
         - Temporal context (when events occurred in the episode sequence)
+        - Hierarchical pattern separation (Refine on high-level features, then refine on lower-level features)
+        - Some sort of confidence metric
     """
     
     def __init__(self,
-                 distinctiveness_threshold: float = 0.5,
-                 enhancement_factor: float = 1.2,
-                 retrieval_threshold: float = 0.7,
-                 max_retrievals: int = 20,
-                 feature_weights: Dict[str, float] = None):
-        super().__init__(distinctiveness_threshold, feature_weights)
+                distinctiveness_threshold: float = 0.5,
+                enhancement_factor: float = 1.2,
+                retrieval_threshold: float = 0.7,
+                max_retrievals: int = 20,
+                # feature_weights: Dict[str, float] = None
+        ):
+        self.distinctiveness_threshold = distinctiveness_threshold
         self.enhancement_factor = enhancement_factor
         self.retrieval_threshold = retrieval_threshold
         self.max_retrievals = max_retrievals
+        # self.feature_weights = feature_weights
 
     def enhance_separation(self, current: torch.Tensor, block_repr_k: List[torch.Tensor]) -> torch.Tensor:
         """Enhanced pattern separation with memory retrieval"""
@@ -52,7 +55,8 @@ class EnhancedPatternSeparator(PatternSeparator):
         
         # 4. If similar to mean representation of similar blocks, enhance separation
         # TODO: Case for when blocks come from same episode
-        if self.calculate_distinctiveness(current, similar_mean) < self.distinctiveness_threshold:
+        adaptive_threshold = self._calculate_adaptive_threshold(similarities)
+        if self.calculate_distinctiveness(current, similar_mean) < adaptive_threshold:
             diff = current - similar_mean
             enhanced = current + (diff * (self.enhancement_factor - 1.0))
             enhanced = enhanced * (torch.norm(current) / torch.norm(enhanced)) # Normalize
@@ -60,6 +64,14 @@ class EnhancedPatternSeparator(PatternSeparator):
             return enhanced
             
         return current
+    
+    def _calculate_adaptive_threshold(self, similarities: List[float]) -> float:
+        """Adjusts threshold based on memory density"""
+        if not similarities:
+            return self.distinctiveness_threshold
+        
+        density = sum(1 for s in similarities if s > self.retrieval_threshold) / len(similarities)
+        return self.distinctiveness_threshold * (1 + density * 0.5)
 
     def _amplify_differences(self, 
                            episode: torch.Tensor,
